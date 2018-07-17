@@ -1,5 +1,5 @@
 # Tracking_system
-Tracking system
+Tracking system with used YOLO recognition and OpenCV tracking
 
 ### Download weights from:
 
