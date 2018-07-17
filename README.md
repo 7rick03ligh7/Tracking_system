@@ -1,7 +1,7 @@
 # Tracking_system
 Tracking system with used YOLO recognition and OpenCV tracking
 
-### Download weights from:
+### Download weights for YOLO from:
 
 tiny - https://drive.google.com/file/d/0B2JbaJSrWLpza0FtQlc3ejhMTTA/view?usp=sharing
 
