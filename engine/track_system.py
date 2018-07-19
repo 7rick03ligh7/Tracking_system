@@ -56,10 +56,10 @@ class Tracking_system:
             p_x = 0
         if p_y < 0:
             p_y = 0
-        if p_x + w > 640:
-            w = 640 - p_x
-        if p_y + h > 480:
-            h = 480 - p_y
+        if p_x + w > 1280:
+            w = 1280 - p_x
+        if p_y + h > 720:
+            h = 720 - p_y
         bbox = (p_x, p_y, w, h)
         return tuple(map(int, bbox))
 
@@ -74,6 +74,7 @@ class Tracking_system:
         """
 
         # initialize camread
+        print("capture from",self.capture)
         cap = CamRead(self.capture)
 
         # initialize init state from first cam read
@@ -111,6 +112,7 @@ class Tracking_system:
             frame, res = child_track.recv()
             if res is not None:
                 cv_bbox = self.bbox2cv_bbox(res[0][1:5])
+                print(cv_bbox)
                 tracker = Tracker(self.track_type, cv_bbox, frame)
                 initialized = True
                 e_track.set()
@@ -142,12 +144,16 @@ class Tracking_system:
         # initialize YOLO
         yolo = Yolo(yolo_type)
         e_recog.set()
+        print("yolo defined")
 
         while True:
             frame = child_recog.recv()
+            print("recog process frame recieved")
             if frame is None:
+                print("FRAME NONE? R U SURE ABOUT THAT?!")
                 return
             res = yolo.detect(frame, cvmat=True)
+            print("recog send")
             e_recog.set()
             child_recog.send(res)
 
@@ -244,6 +250,7 @@ class Tracking_system:
         self.track_type = track_type
         self.yolo_type = yolo_type
         cam_init_prop = InitModule()
+        self.capture = cam_init_prop.streamURL
 
         # initialize Pipes
         parent_cam, child_cam = Pipe()
@@ -268,8 +275,8 @@ class Tracking_system:
 
         # ====== cam_move process ======
         moving = MoveModule()
-        move_p = Process(target=moving.coords, args=(child_move, moving))
-        move_p.start()
+        move_proc = Process(target=moving.coords, args=(child_move, cam_init_prop))
+        move_proc.start()
 
         # recognize
         res = []
@@ -334,13 +341,14 @@ class Tracking_system:
                                 parent_track.send([frame])
                                 cv_bbox = parent_track.recv()
                         else:
+                            print("nothing recognized")
                             parent_track.send([frame])
                             cv_bbox = parent_track.recv()
 
-                # self.show_results(frame, cv_bbox, None, None)
-                bbox = cv_bbox2bbox(cv_bbox)
-                print('send')
-                moving.send(bbox)
+                #self.show_results(frame, cv_bbox, None, None)
+                bbox = self.cv_bbox2bbox(cv_bbox)
+                print('send to move', bbox)
+                parent_move.send(bbox)
 
                 # close all process
                 k = cv.waitKey(1) & 0xff

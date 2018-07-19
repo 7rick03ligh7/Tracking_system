@@ -37,9 +37,9 @@ class Yolo:
         self.yolo_type = yolo_type
         self.last_layer = None
         if yolo_type == 'small':
-            self.weights_file = 'weights/YOLO_small.ckpt'
+            self.weights_file = '/mnt/c/users/efano/Tracking_system/weights/YOLO_small.ckpt'
         elif yolo_type == 'tiny':
-            self.weights_file = 'weights/YOLO_tiny.ckpt'
+            self.weights_file = '/mnt/c/users/efano/Tracking_system/weights/YOLO_tiny.ckpt'
         else:
             return
         self.build_networks()
