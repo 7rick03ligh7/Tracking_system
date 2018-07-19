@@ -10,7 +10,7 @@ class  MoveModule:
         
     # waits for the flag from coords method and moves the camera if the flag is set
     
-    def move(child_mpipe, child_pipe):
+    def move(self, child_mpipe, init, child_pipe):
     
         refresh_delay = 0.2
         
@@ -42,10 +42,26 @@ class  MoveModule:
                 ntMove = [True]
                 child_mpipe.send(ntMove)
                 
-                #code for actual moving with settings speeds, missing due to onvif for python3 being broken
-                    
+                # here goes importing of ptz - media - token stuff
                 
+                token = init.token
+                ptz = init.ptz
                 
+                # actual moving of the camera here
+                
+                req = {'Velocity': {'Zoom': {'space': '', 'x': '0'}, 'PanTilt': {'space': '', 'y': speedY, 'x': speedX}}, 'ProfileToken': token, 'Timeout': None}
+                ptz.AbsoluteMove(req)
+                
+                while True:
+                
+                    coordsArr = child_pipe.recv()
+                    x = coordsArr[0]
+                    y = coordsArr[1]
+                    if x > widthSafeMin and x < widthSafeMax and y > heightSafeMin and y < heightSafeMax:
+                        ptz.Stop({'ProfileToken': request.ProfileToken})
+                        ntMove = [False]
+                        child_mpipe.send(ntMove)
+                        break
             else:
             
                 print("no need to move yet!")
@@ -56,14 +72,14 @@ class  MoveModule:
     
     # checks XY coordinates and decides if the camera needs to be moved
     
-    def coords(child_pipe, useRightThird=False):
+    def coords(self, child_pipe, init, useRightThird=False):
     
         safeZoneMarginX = 0.04
         safeZoneMarginY = 0.15
         refresh_delay = 0.2
         
         parent_mpipe, child_mpipe = Pipe()
-        move_p = Process(target = move, args=(child_mpipe, child_pipe))
+        move_p = Process(target = move, args=(self, child_mpipe, init, child_pipe))
         move_p.start()
         
         
