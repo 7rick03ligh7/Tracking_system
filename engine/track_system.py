@@ -1,11 +1,12 @@
 from engine.model.yolo import Yolo
 from engine.tracker import Tracker
 from engine.camread import CamRead
+from engine.utils.move_module import MoveModule
+from engine.utils.init_module import InitModule
 from multiprocessing import Process, Pipe, Event
 import time
 import cv2 as cv
 import matplotlib.pyplot as plt
-import sys
 import numpy as np
 
 
@@ -242,11 +243,14 @@ class Tracking_system:
         self.capture = capture
         self.track_type = track_type
         self.yolo_type = yolo_type
+        cam_init_prop = InitModule()
 
         # initialize Pipes
         parent_cam, child_cam = Pipe()
         parent_track, child_track = Pipe()
         parent_recog, child_recog = Pipe()
+        parent_move, child_move = Pipe()
+
         e_track = Event()
         e_recog = Event()
         e_cam = Event()
@@ -261,6 +265,11 @@ class Tracking_system:
         # ====== cam read process ======
         cam_p = Process(target=self.camread_proc, args=(child_cam, e_cam))
         cam_p.start()
+
+        # ====== cam_move process ======
+        moving = MoveModule()
+        move_p = Process(target=moving.coords, args=(child_move, moving))
+        move_p.start()
 
         # recognize
         res = []
@@ -328,8 +337,10 @@ class Tracking_system:
                             parent_track.send([frame])
                             cv_bbox = parent_track.recv()
 
-                self.show_results(frame, cv_bbox, None,
-                                  None)
+                # self.show_results(frame, cv_bbox, None, None)
+                bbox = cv_bbox2bbox(cv_bbox)
+                print('send')
+                moving.send(bbox)
 
                 # close all process
                 k = cv.waitKey(1) & 0xff
