@@ -18,7 +18,7 @@ class InitModule:
 
         # dont touch this
 
-        zeep.xsd.simple.AnySimpleType.pythonvalue = zeep_pythonvalue
+        zeep.xsd.simple.AnySimpleType.pythonvalue = self.zeep_pythonvalue
 
         # hardcoded ip-port-log-pass
 
@@ -30,16 +30,16 @@ class InitModule:
         mycam = ONVIFCamera(ip, port, login, password)
         media = mycam.create_media_service()
         self.profile = media.GetProfiles()[0]
-        token = profile.token
-        ptz = mycam.create_ptz_service()
-        request = ptz.create_type('GetConfigurationOptions')
-        request.ConfigurationToken = profile.PTZConfiguration.token
-        ptz_configuration_options = ptz.GetConfigurationOptions(request)
-        request = ptz.create_type('ContinuousMove')
-        request.ProfileToken = profile.token
+        self.token = self.profile.token
+        self.ptz = mycam.create_ptz_service()
+        request = self.ptz.create_type('GetConfigurationOptions')
+        request.ConfigurationToken = self.profile.PTZConfiguration.token
+        ptz_configuration_options = self.ptz.GetConfigurationOptions(request)
+        request = self.ptz.create_type('ContinuousMove')
+        request.ProfileToken = self.profile.token
         self.request2 = request
         # gets url in a struct
         streamURIStruct = media.GetStreamUri(
-            {'StreamSetup': {'Stream': 'RTP-Unicast', 'Transport': 'UDP'}, 'ProfileToken': token})
+            {'StreamSetup': {'Stream': 'RTP-Unicast', 'Transport': 'UDP'}, 'ProfileToken': self.token})
         # the url itself
         self.streamURL = streamURIStruct.Uri
