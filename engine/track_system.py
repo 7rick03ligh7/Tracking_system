@@ -78,12 +78,15 @@ class Tracking_system:
         cap = CamRead(self.capture)
 
         # initialize init state from first cam read
+        
         ok, frame, frame_num = cap.read()
         child_cam.send([frame, frame_num])
 
         while True:
             if event_close.is_set():
                 return
+            #cap.read()
+            #cap.read()
             ok, frame, frame_num = cap.read()
             child_cam.send([frame, frame_num])
 
