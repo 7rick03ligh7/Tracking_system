@@ -39,11 +39,17 @@ class MoveModule:
                 height = 720
 
                 # if x-ntmove1 < 0 then X is positioned to the left of the safezone
+                if x > widthSafeMin and x < widthSafeMax:
+                    speedX = 0
+                else:
+                    speedX = (round((x - ntMove[1]) / ntMove[1], 2))
+                    print("speedX", speedX)
 
-                speedX = (round((x - ntMove[1]) / ntMove[1], 2))
-                print("speedX", speedX)
-                speedY = (round((y - ntMove[3]) / ntMove[3], 2))
-                print("speedY", speedY)
+                if y > heightSafeMin and y < heightSafeMax:
+                    speedY = 0
+                else:
+                    speedY = (round((y - ntMove[3]) / ntMove[3], 2))
+                    print("speedY", speedY)
 
                 ntMove = [True]
                 child_mpipe.send(ntMove)
