@@ -13,20 +13,26 @@ class InitModule:
         return xmlvalue
 
     def __init__(self):
-
+        
         # @todo: config parsing
-
+        
         # dont touch this
-
+        
         zeep.xsd.simple.AnySimpleType.pythonvalue = self.zeep_pythonvalue
-
+        
         # hardcoded ip-port-log-pass
-
+        
         ip = '192.168.11.43'
         port = 80
         login = 'admin'
         password = 'Supervisor'
-
+        
+        # @todo: code properly
+        
+        self.width = None
+        self.height = None
+        self.useRightThird = False
+        
         mycam = ONVIFCamera(ip, port, login, password)
         media = mycam.create_media_service()
         self.profile = media.GetProfiles()[0]
@@ -38,8 +44,10 @@ class InitModule:
         request = self.ptz.create_type('ContinuousMove')
         request.ProfileToken = self.profile.token
         self.request2 = request
+        
         # gets url in a struct
         streamURIStruct = media.GetStreamUri(
-            {'StreamSetup': {'Stream': 'RTP-Unicast', 'Transport': 'UDP'}, 'ProfileToken': self.token})
+            {'StreamSetup': {'Stream': 'RTP-Unicast', 'Transport': 'UDP'}, 'ProfileToken': token})
+        
         # the url itself
         self.streamURL = streamURIStruct.Uri
