@@ -41,7 +41,7 @@ class MoveModule:
         
         if not useRightThird:
             widthSafeMin = round((0.33 - safeZoneMarginX) * width)
-            widthSafeMax = round((0.33 + safeZoneMarginX) * width))
+            widthSafeMax = round((0.33 + safeZoneMarginX) * width)
         else:
             widthSafeMin = round((0.66 - safeZoneMarginX) * width)
             widthSafeMax = round((0.66 + safeZoneMarginX) * width)
@@ -102,11 +102,11 @@ class MoveModule:
                     speedY = 0
                 else:
                     # y is in the bottom part of the screen
-                    speedY = round(((y - heightSafeMax) / (height - heightSafeMax)), 2)
+                    speedY = -1(round(((y - heightSafeMax) / (height - heightSafeMax)), 2))
                     print("speedY bottom", speedY) 
             else:
                 # y is in the top part of the screen
-                speedY = -1*(round((y - heightSafeMin) / heightSafeMin, 2))
+                speedY = (round((y - heightSafeMin) / heightSafeMin, 2))
                 print("speedY top", speedY)
                 
             # "clamping" the value of speed if the delta between previous and current speeds is more than allowed
@@ -126,7 +126,7 @@ class MoveModule:
                 
                 if not prevSpeedY:
                     prevSpeedY = 0
-                if abs(speedY - prevSpeedY) > speedDelta
+                if abs(speedY - prevSpeedY) > speedDelta:
                     if speedY - prevSpeedY < 0:
                         speedY = prevSpeedY - speedDelta
                     else:

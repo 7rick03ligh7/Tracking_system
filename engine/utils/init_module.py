@@ -31,7 +31,7 @@ class InitModule:
         
         self.width = None
         self.height = None
-        self.useRightThird = False
+        self.UseRightThird = False
         
         mycam = ONVIFCamera(ip, port, login, password)
         media = mycam.create_media_service()
@@ -47,7 +47,7 @@ class InitModule:
         
         # gets url in a struct
         streamURIStruct = media.GetStreamUri(
-            {'StreamSetup': {'Stream': 'RTP-Unicast', 'Transport': 'UDP'}, 'ProfileToken': token})
+            {'StreamSetup': {'Stream': 'RTP-Unicast', 'Transport': 'UDP'}, 'ProfileToken': self.token})
         
         # the url itself
         self.streamURL = streamURIStruct.Uri
