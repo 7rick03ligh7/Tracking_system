@@ -63,7 +63,7 @@ class Tracking_system:
         bbox = (p_x, p_y, w, h)
         return tuple(map(int, bbox))
 
-    def camread_proc(self, child_cam: Pipe, event_close: Event):
+    def camread_proc(self, child_cam: Pipe):
         """
         Parallel process for read frame from source
 
@@ -83,8 +83,6 @@ class Tracking_system:
         child_cam.send([frame, frame_num])
 
         while True:
-            if event_close.is_set():
-                return
             # cap.read()
             # cap.read()
             ok, frame, frame_num = cap.read()
@@ -248,137 +246,126 @@ class Tracking_system:
                 'tiny'
                 'small'
         """
+        try:
+            self.track_type = track_type
+            self.yolo_type = yolo_type
 
-        self.track_type = track_type
-        self.yolo_type = yolo_type
+            # initialize Pipes
+            parent_cam, child_cam = Pipe()
+            parent_track, child_track = Pipe()
+            parent_recog, child_recog = Pipe()
+            parent_move, child_move = Pipe()
 
-        # initialize Pipes
-        parent_cam, child_cam = Pipe()
-        parent_track, child_track = Pipe()
-        parent_recog, child_recog = Pipe()
-        parent_move, child_move = Pipe()
+            if capture is None:
+                cam_init_prop = InitModule()
+                self.capture = cam_init_prop.streamURL
 
-        if capture is None:
-            cam_init_prop = InitModule()
-            self.capture = cam_init_prop.streamURL
-
-            # ====== cam_move process ======
-            moving = MoveModule()
-            move_proc = Process(target=moving.coords,
-                                args=(child_move, cam_init_prop))
-            move_proc.start()
-        else:
-            self.capture = int(capture)
-
-        e_track = Event()
-        e_recog = Event()
-        e_cam = Event()
-
-        # ====== recognize process ======
-        recog_p = Process(target=self.recog_proc, args=(
-            child_recog, e_recog, self.yolo_type))
-        recog_p.start()
-
-        e_recog.wait()
-        e_recog.clear()
-
-        # ====== cam read process ======
-        cam_p = Process(target=self.camread_proc, args=(child_cam, e_cam))
-        cam_p.start()
-
-        # recognize
-        res = []
-        while res == []:
-            frame, frame_num = parent_cam.recv()
-            if frame is not None:
-                parent_recog.send(frame)
-                e_recog.wait()
-                e_recog.clear()
-                res = parent_recog.recv()
+                # ====== cam_move process ======
+                moving = MoveModule()
+                move_proc = Process(target=moving.coords, name='moving process',
+                                    args=(child_move, cam_init_prop))
+                move_proc.start()
             else:
-                print('frame is None')
-                time.sleep(1)
-            print(frame_num)
-        print(res)
+                self.capture = int(capture)
 
-        # ===== track process ======
-        track_p = Process(target=self.tracker_proc,
-                          args=(child_track, e_track))
-        track_p.start()
-        parent_track.send([frame, res])
-        e_track.wait()
+            e_track = Event()
+            e_recog = Event()
 
-        recog_busy = False
-        e_recog.clear()
-        check_recog_bbox = (0, 0, 0, 0)
-        check_track_bbox = (0, 0, 0, 0)
-        while True:
-            # TODO: is it needed?
-            e_track.clear()
+            # ====== recognize process ======
+            recog_p = Process(target=self.recog_proc, name='recognition process',
+                              args=(child_recog, e_recog, self.yolo_type))
+            recog_p.start()
 
-            frame, frame_num = parent_cam.recv()
+            e_recog.wait()
+            e_recog.clear()
 
-            if not e_track.is_set():
-                if not recog_busy:
-                    check_frame = frame.copy()
-                    parent_recog.send(check_frame)
-                    recog_busy = True
+            # ====== cam read process ======
+            cam_p = Process(target=self.camread_proc, name='cam read process',
+                            args=(child_cam,))
+            cam_p.start()
 
-                    parent_track.send([check_frame])
-                    cv_bbox = parent_track.recv()
-                    check_track_bbox = self.cv_bbox2bbox(cv_bbox)
+            # recognize
+            res = []
+            while res == []:
+                frame, frame_num = parent_cam.recv()
+                if frame is not None:
+                    parent_recog.send(frame)
+                    e_recog.wait()
+                    e_recog.clear()
+                    res = parent_recog.recv()
                 else:
-                    if not e_recog.is_set():
-                        parent_track.send([frame])
+                    print('frame is None')
+                    time.sleep(1)
+                print(frame_num)
+            print(res)
+
+            # ===== track process ======
+            track_p = Process(target=self.tracker_proc, name='track process',
+                              args=(child_track, e_track))
+            track_p.start()
+            parent_track.send([frame, res])
+            e_track.wait()
+
+            recog_busy = False
+            e_recog.clear()
+            check_recog_bbox = (0, 0, 0, 0)
+            check_track_bbox = (0, 0, 0, 0)
+            while True:
+                # TODO: is it needed?
+                e_track.clear()
+
+                frame, frame_num = parent_cam.recv()
+
+                if not e_track.is_set():
+                    if not recog_busy:
+                        check_frame = frame.copy()
+                        parent_recog.send(check_frame)
+                        recog_busy = True
+
+                        parent_track.send([check_frame])
                         cv_bbox = parent_track.recv()
-                        # print('curr frame ', cv_bbox)
+                        check_track_bbox = self.cv_bbox2bbox(cv_bbox)
                     else:
-                        recog_busy = False
-                        e_recog.clear()
-                        res = parent_recog.recv()
-                        if res != []:
-                            check_recog_bbox = res[0][1:5]
-                            iou = self.get_iou(
-                                check_track_bbox, check_recog_bbox)
-                            print('check track', check_track_bbox)
-                            print('check recog', check_recog_bbox)
-                            print("IOU", iou)
-                            if iou < 0.5:
-                                parent_track.send(
-                                    [check_frame, check_recog_bbox])
-                                parent_track.recv()
-                                parent_track.send([frame])
-                                cv_bbox = parent_track.recv()
-                            else:
-                                parent_track.send([frame])
-                                cv_bbox = parent_track.recv()
-                        else:
-                            print("nothing recognized")
+                        if not e_recog.is_set():
                             parent_track.send([frame])
                             cv_bbox = parent_track.recv()
+                            # print('curr frame ', cv_bbox)
+                        else:
+                            recog_busy = False
+                            e_recog.clear()
+                            res = parent_recog.recv()
+                            if res != []:
+                                check_recog_bbox = res[0][1:5]
+                                iou = self.get_iou(
+                                    check_track_bbox, check_recog_bbox)
+                                print('check track', check_track_bbox)
+                                print('check recog', check_recog_bbox)
+                                print("IOU", iou)
+                                if iou < 0.5:
+                                    parent_track.send(
+                                        [check_frame, check_recog_bbox])
+                                    parent_track.recv()
+                                    parent_track.send([frame])
+                                    cv_bbox = parent_track.recv()
+                                else:
+                                    parent_track.send([frame])
+                                    cv_bbox = parent_track.recv()
+                            else:
+                                print("nothing recognized")
+                                parent_track.send([frame])
+                                cv_bbox = parent_track.recv()
 
-                self.show_results(frame, cv_bbox, None, None)
-                bbox = self.cv_bbox2bbox(cv_bbox)
-                print('send to move', bbox)
-                if capture is None:
-                    parent_move.send(bbox)
+                    self.show_results(frame, cv_bbox, None, None)
+                    bbox = self.cv_bbox2bbox(cv_bbox)
+                    print('send to move', bbox)
+                    if capture is None:
+                        parent_move.send(bbox)
 
-                # close all process
-                k = cv.waitKey(1) & 0xff
-                if k == 27:
-                    print('1')
-                    parent_track.send([None])
-                    print('2')
-                    parent_recog.send(None)
-                    print('3')
-                    e_cam.set()
-                    parent_cam.recv()
-                    print('4')
-
-                    track_p.join()
-                    print('5')
-                    recog_p.join()
-                    print('6')
-                    cam_p.join()
-                    print('7')
-                    return
+        except:
+            recog_p.terminate()
+            track_p.terminate()
+            if capture is None:
+                move_p.terminate()
+            cam_p.terminate()
+            print('All process terminated')
+            return
