@@ -256,6 +256,11 @@ class Tracking_system:
             parent_recog, child_recog = Pipe()
             parent_move, child_move = Pipe()
 
+            recog_p = None
+            track_p = None
+            cam_p = None
+            move_p = None
+
             if capture is None:
                 cam_init_prop = InitModule()
                 self.capture = cam_init_prop.streamURL
@@ -362,10 +367,13 @@ class Tracking_system:
                         parent_move.send(bbox)
 
         except:
-            recog_p.terminate()
-            track_p.terminate()
-            if capture is None:
+            if recog_p is not None:
+                recog_p.terminate()
+            if track_p is not None:
+                track_p.terminate()
+            if move_p is not None:
                 move_p.terminate()
-            cam_p.terminate()
+            if cam_p is not None:
+                cam_p.terminate()
             print('All process terminated')
             return
