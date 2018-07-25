@@ -74,19 +74,19 @@ class Tracking_system:
         """
 
         # initialize camread
-        print("capture from",self.capture)
+        print("capture from", self.capture)
         cap = CamRead(self.capture)
 
         # initialize init state from first cam read
-        
+
         ok, frame, frame_num = cap.read()
         child_cam.send([frame, frame_num])
 
         while True:
             if event_close.is_set():
                 return
-            #cap.read()
-            #cap.read()
+            # cap.read()
+            # cap.read()
             ok, frame, frame_num = cap.read()
             child_cam.send([frame, frame_num])
 
@@ -249,17 +249,26 @@ class Tracking_system:
                 'small'
         """
 
-        self.capture = capture
         self.track_type = track_type
         self.yolo_type = yolo_type
-        cam_init_prop = InitModule()
-        self.capture = cam_init_prop.streamURL
 
         # initialize Pipes
         parent_cam, child_cam = Pipe()
         parent_track, child_track = Pipe()
         parent_recog, child_recog = Pipe()
         parent_move, child_move = Pipe()
+
+        if capture is None:
+            cam_init_prop = InitModule()
+            self.capture = cam_init_prop.streamURL
+
+            # ====== cam_move process ======
+            moving = MoveModule()
+            move_proc = Process(target=moving.coords,
+                                args=(child_move, cam_init_prop))
+            move_proc.start()
+        else:
+            self.capture = int(capture)
 
         e_track = Event()
         e_recog = Event()
@@ -272,23 +281,23 @@ class Tracking_system:
 
         e_recog.wait()
         e_recog.clear()
+
         # ====== cam read process ======
         cam_p = Process(target=self.camread_proc, args=(child_cam, e_cam))
         cam_p.start()
-
-        # ====== cam_move process ======
-        moving = MoveModule()
-        move_proc = Process(target=moving.coords, args=(child_move, cam_init_prop))
-        move_proc.start()
 
         # recognize
         res = []
         while res == []:
             frame, frame_num = parent_cam.recv()
-            parent_recog.send(frame)
-            e_recog.wait()
-            e_recog.clear()
-            res = parent_recog.recv()
+            if frame is not None:
+                parent_recog.send(frame)
+                e_recog.wait()
+                e_recog.clear()
+                res = parent_recog.recv()
+            else:
+                print('frame is None')
+                time.sleep(1)
             print(frame_num)
         print(res)
 
@@ -348,10 +357,11 @@ class Tracking_system:
                             parent_track.send([frame])
                             cv_bbox = parent_track.recv()
 
-                #self.show_results(frame, cv_bbox, None, None)
+                self.show_results(frame, cv_bbox, None, None)
                 bbox = self.cv_bbox2bbox(cv_bbox)
                 print('send to move', bbox)
-                parent_move.send(bbox)
+                if capture is None:
+                    parent_move.send(bbox)
 
                 # close all process
                 k = cv.waitKey(1) & 0xff

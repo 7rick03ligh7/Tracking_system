@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import engine.model.layers as layers
 import os
 
+
 class Yolo:
     """
     Class for define YOLO neural network for object recognition
@@ -37,9 +38,9 @@ class Yolo:
         self.yolo_type = yolo_type
         self.last_layer = None
         if yolo_type == 'small':
-            self.weights_file = os.getcwd() + '/weights/YOLO_small.ckpt'
+            self.weights_file = os.getcwd() + '\weights\YOLO_small.ckpt'
         elif yolo_type == 'tiny':
-            self.weights_file = os.getcwd() + '/weights/YOLO_tiny.ckpt'
+            self.weights_file = os.getcwd() + '\weights\YOLO_tiny.ckpt'
         else:
             return
         self.build_networks()

@@ -19,6 +19,8 @@ class CamRead:
         self.frame = None
         self.frame_num = 0
         self.cap = cv.VideoCapture(capture)
+        if not self.cap.isOpened():
+            raise Exception("Can't open video device from --- ", capture)
 
     def read(self) -> iter:
         """
