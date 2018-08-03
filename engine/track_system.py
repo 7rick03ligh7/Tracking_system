@@ -262,6 +262,7 @@ class Tracking_system:
             move_p = None
 
             if capture is None:
+                print('cam init')
                 cam_init_prop = InitModule()
                 self.capture = cam_init_prop.streamURL
 
@@ -360,7 +361,7 @@ class Tracking_system:
                                 parent_track.send([frame])
                                 cv_bbox = parent_track.recv()
 
-                    self.show_results(frame, cv_bbox, None, None)
+                    #self.show_results(frame, cv_bbox, None, None)
                     bbox = self.cv_bbox2bbox(cv_bbox)
                     print('send to move', bbox)
                     if capture is None:

@@ -1,0 +1,1 @@
+{'password': 'Supervisor', 'on': True, 'port': 80, 'right': True, 'login': 'admin', 'zoom': 0.5, 'IP': '192.168.11.43'}
