@@ -1,32 +1,32 @@
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 <script type=text/javascript>
-        $(function() {        
+        $(function() {
         {% for camera in cameras %}
-        document.getElementById("left_{{camera}}").disabled = false;
-        document.getElementById("right_{{camera}}").disabled = false;
-        document.getElementById("zoom_{{camera}}").disabled = false;
          $("#ON_{{camera}}").change( function()
            {          
    
-           if (document.getElementById("ON_{{camera}}").checked == false){                 
+           if (document.getElementById("ON_{{camera}}").checked == false){
+                {% for camera in cameras %}
                 document.getElementById("left_{{camera}}").disabled = false;
                 document.getElementById("right_{{camera}}").disabled = false;
-                document.getElementById("zoom_{{camera}}").disabled = false;;
-               
+                {% endfor %}
             $.getJSON('/set_off', {'camera': {{camera}}},function(data) {  }); 
             return false;
              }          
              
           if (document.getElementById("ON_{{camera}}").checked){
-              
-                document.getElementById("left_{{camera}}").disabled = false;
-                document.getElementById("right_{{camera}}").disabled = false;
-                document.getElementById("zoom_{{camera}}").disabled = false;
+                document.getElementById("left_{{camera}}").disabled = true;
+                document.getElementById("right_{{camera}}").disabled = true;
+                {% for camera in cameras %}
+                document.getElementById("ON_{{camera}}").checked = false;
+                $.getJSON('/set_off', {'camera': {{camera}}},function(data) {  });
+                {% endfor %}
+                document.getElementById("ON_{{camera}}").checked = true;
              alert(' Starting tracking for camera no.{{camera}}, may take up to 45 seconds to start ');
             $.getJSON('/set_on', {'camera': {{camera}}}, function(data) {  });
              return false;
           }    
-          });  
+          });
          
            $("#left_{{camera}}").click( function() {
            if (document.getElementById("left_{{camera}}").checked){
@@ -40,8 +40,43 @@
           }
           });    
          
-          $("#zoom_{{camera}}").change( function() {
-             $.getJSON('/set_zoom', {'camera': {{camera}}, 'zoom' : $("#zoom_{{camera}}").val()},function(data) {  });
+         
+          $("#increase_{{camera}}").mousedown( function() {
+             $.getJSON('/increase', {'camera': {{camera}}},function(data) {  });
+            return false;
+           }
+         );
+         
+          $("#increase_{{camera}}").mouseup( function() {
+             $.getJSON('/zstop', {'camera': {{camera}}},function(data) {  });
+            return false;
+           }
+         );
+
+          $("#decrease_{{camera}}").mousedown( function() {
+             $.getJSON('/decrease', {'camera': {{camera}}},function(data) {  });
+            return false;
+           }
+         );
+
+          $("#decrease_{{camera}}").mouseup( function() {
+             $.getJSON('/zstop', {'camera': {{camera}}},function(data) {  });
+            return false;
+           }
+         );
+
+          $("#connect_{{camera}}").click( function() {
+             $.getJSON('/connect', {'camera': {{camera}}},function(data) {  });
+             {% for camera in cameras %}
+             $("#connect_{{camera}}").text("Control This Camera");
+             $("#connect_{{camera}}").removeClass().addClass("btn btn-primary btn-sm")
+             $("#increase_{{camera}}").removeClass().addClass("btn btn-primary btn-sm disabled")
+             $("#decrease_{{camera}}").removeClass().addClass("btn btn-primary btn-sm disabled")
+             {% endfor %}
+             $("#connect_{{camera}}").text("Controlling Camera");
+             $("#connect_{{camera}}").removeClass().addClass("btn btn-success btn-sm")
+             $("#increase_{{camera}}").removeClass().addClass("btn btn-primary btn-sm")
+             $("#decrease_{{camera}}").removeClass().addClass("btn btn-primary btn-sm")
             return false;
            }
          );         
@@ -53,7 +88,7 @@
   <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=yes">
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
@@ -63,39 +98,29 @@
 
   <body> 
       <h3>Network: {{network}}</h3>
-<h3>Amount of active cameras: {{N}}</h3>
+<h3>Discovered {{N}} cameras</h3>
   
-{% for camera in cameras %}
 
-<h4>Camera {{camera}}</h4>
-  <div class="col-md-4"
+  <div class="col-lg"
            style='padding-top: 20px;'>
     
-      <table id = "t" class="table table-hover">
+      <table id = "t" style="width: auto" class="table table-hover table-condensed">
   <thead>
     <tr>
-      <th scope="col">{{camera}}</th>
-      <th scope="col">Parameter</th>
-      <th scope="col">Status</th> 
-
+      <th scope="col">Camera #</th>
+      <th scope="col">Side</th>
+      <th scope="col">Zoom Controls</th> 
+      <th scope="col">Enable</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody>  
+
+{% for camera in cameras %}
+
     <tr>
-      <th scope="row">1</th>
-      <td>Enable</td>
+      <th scope="row">{{camera}}</th>
       <td>
-    <div class="custom-control custom-checkbox">
-      <input type="checkbox" class="custom-control-input" id="ON_{{camera}}">
-      <label class="custom-control-label" for="ON_{{camera}}">On</label>
-    </div>
-        </td>
-    </tr>
-    <tr>
-      <th scope="row">2</th>
-      <td>Side</td>
-        <td> 
-        <div   class="custom-control custom-radio custom-control-inline">
+       <div   class="custom-control custom-radio custom-control-inline">
           <input  id="left_{{camera}}"  type="radio"  name="customRadio" class="custom-control-input">
           <label class="custom-control-label" for="left_{{camera}}">Left</label>
         </div>
@@ -103,20 +128,27 @@
           <input  id="right_{{camera}}" type="radio" name="customRadio" class="custom-control-input">
               <label  class="custom-control-label" for="right_{{camera}}">Right</label>
         </div>
-     </td>
-   
+      </td>
+      <td>
+      <button id ="decrease_{{camera}}" type="button" class="btn btn-primary btn-sm disabled">Zoom -</button>
+      <button id ="increase_{{camera}}" type="button" class="btn btn-primary btn-sm disabled">Zoom +</button>
+      <button id ="connect_{{camera}}" type="button" class="btn btn-primary btn-sm">Control This Camera</button>
+      </td>
+      <td>
+             <div class="custom-control custom-checkbox">
+      <input type="checkbox" class="custom-control-input" id="ON_{{camera}}">
+      <label class="custom-control-label" for="ON_{{camera}}">On</label>
+    </div>
+    </td>
     </tr>
-    <tr>
-      <th scope="row">3</th>
-      <td>Zoom</td>
-      <td><input id = "zoom_{{camera}}" class="form-control" type="text" placeholder="0.5"></td>
-    </tr>
+    
+    {% endfor %} 
+    
   </tbody>
 </table>
       
 </div>
-    
-{% endfor %}    
+       
 
   </body>
 </html>

@@ -8,6 +8,7 @@ import time
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 
 class Tracking_system:
@@ -259,8 +260,9 @@ class Tracking_system:
             recog_p = None
             track_p = None
             cam_p = None
-            move_p = None
-
+            move_proc = None
+            pIDs = []
+            
             if capture is None:
                 print('cam init')
                 cam_init_prop = InitModule()
@@ -271,6 +273,8 @@ class Tracking_system:
                 move_proc = Process(target=moving.coords, name='moving process',
                                     args=(child_move, cam_init_prop))
                 move_proc.start()
+                print("move_proc PID = ", move_proc.pid)
+                pIDs.append(move_proc.pid)
             else:
                 self.capture = int(capture)
 
@@ -281,6 +285,8 @@ class Tracking_system:
             recog_p = Process(target=self.recog_proc, name='recognition process',
                               args=(child_recog, e_recog, self.yolo_type))
             recog_p.start()
+            print("recog_p PID = ", recog_p.pid)
+            pIDs.append(recog_p.pid)
 
             e_recog.wait()
             e_recog.clear()
@@ -289,6 +295,13 @@ class Tracking_system:
             cam_p = Process(target=self.camread_proc, name='cam read process',
                             args=(child_cam,))
             cam_p.start()
+            print("cam_p PID = ", cam_p.pid)
+            pIDs.append(cam_p.pid)
+            path = os.getcwd() + '/pids.py'
+            pidF = open(path, 'w')
+            pidF.write('pIDs = ' + repr(pIDs))
+            pidF.close()
+            print("written to file before trackp")
 
             # recognize
             res = []
@@ -309,6 +322,13 @@ class Tracking_system:
             track_p = Process(target=self.tracker_proc, name='track process',
                               args=(child_track, e_track))
             track_p.start()
+            print("track_p PID = ", track_p.pid)
+            pIDs.append(track_p.pid)
+            path = os.getcwd() + '/pids.py'
+            pidF = open(path, 'w')
+            pidF.write('pIDs = ' + repr(pIDs))
+            pidF.close()
+            print("written to file")
             parent_track.send([frame, res])
             e_track.wait()
 
@@ -370,11 +390,15 @@ class Tracking_system:
         except:
             if recog_p is not None:
                 recog_p.terminate()
+                print('recog_p terminated')
             if track_p is not None:
                 track_p.terminate()
-            if move_p is not None:
-                move_p.terminate()
+                print('track_p terminated')
+            if move_proc is not None:
+                move_proc.terminate()
+                print('move_proc terminated')
             if cam_p is not None:
                 cam_p.terminate()
+                print('cam_p terminated')
             print('All process terminated')
             return
