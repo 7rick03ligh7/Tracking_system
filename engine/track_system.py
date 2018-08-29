@@ -3,12 +3,17 @@ from engine.tracker import Tracker
 from engine.camread import CamRead
 from engine.utils.move_module import MoveModule
 from engine.utils.init_module import InitModule
+from engine.face_recog import FaceRecog
+
 from multiprocessing import Process, Pipe, Event
 import time
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+
+# import dlib
+# import face_recognition_models
 
 
 class Tracking_system:
@@ -159,6 +164,37 @@ class Tracking_system:
             e_recog.set()
             child_recog.send(res)
 
+    def face_proc(self, child_face_recog: Pipe):
+        """
+        Parallel process for face recognition
+
+        Arguments:
+            child_face_recog {Pipe} -- pipe for communication with parent process,
+                sends ROI ndarray type of recognized object
+        """
+
+        print("face initializer")
+        face_nn = FaceRecog()
+        # face_nn = dlib.cnn_face_detection_model_v1(
+        #     face_recognition_models.cnn_face_detector_model_location())
+        print("face initialized")
+
+        while True:
+            # print("CHILD WAIT RECV")
+            # img = child_face_recog.recv()
+            # print("CHILD START RECOG")
+            # img = np.asarray(img, dtype=np.uint8)
+            # print(img.shape)
+            # face = face_nn(img)
+            # face = face[0].rect
+
+            img = child_face_recog.recv()
+            print('facep proc recieved')
+            img = np.asarray(img, dtype=np.uint8)
+            face = face_nn.recognition_image_from_ndarray(img)
+            print('face proc sended')
+            child_face_recog.send(face)
+
     def get_iou(self, box1: iter, box2: iter) -> float:
         """
         Calculate intersection over union (IOU) between bbox yolo type from
@@ -183,28 +219,30 @@ class Tracking_system:
         return intersection / (box1[2] * box1[3] +
                                box2[2] * box2[3] - intersection)
 
-    def show_results(self, frame: np.ndarray, cv_bbox: iter,
+    def show_results(self, frame: np.ndarray, cv_bbox: iter=None,
                      check_recog_bbox: iter=None, check_track_bbox: iter=None):
         """
         Show recognition and tracking results using cv.imshow
 
         Arguments:
             frame {np.ndarray} -- captured frame
-            cv_bbox {iter} -- bbox cv type from tracking
 
         Keyword Arguments:
+            cv_bbox {iter} -- bbox cv type from tracking (default: {None})
             check_recog_bbox {iter} -- bbox cv type from recognition
                 (default: {None})
             check_track_bbox {iter} -- bbox cv type from tracking in recognized
                 frame (default: {None})
         """
+        frame = np.asarray(frame, dtype=np.uint8)
 
-        p1 = (int(cv_bbox[0]), int(cv_bbox[1]))
-        p2 = (int(cv_bbox[0] + cv_bbox[2]),
-              int(cv_bbox[1] + cv_bbox[3]))
-        cv.rectangle(frame, p1, p2, (0, 0, 255), 2, 1)
-        cv.putText(frame, 'tracking online', (50, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        if cv_bbox is not None:
+            p1 = (int(cv_bbox[0]), int(cv_bbox[1]))
+            p2 = (int(cv_bbox[0] + cv_bbox[2]),
+                  int(cv_bbox[1] + cv_bbox[3]))
+            cv.rectangle(frame, p1, p2, (0, 0, 255), 2, 1)
+            cv.putText(frame, 'tracking online', (50, 60),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         if check_recog_bbox is not None:
             rec_cv_bbox = self.bbox2cv_bbox(check_recog_bbox)
@@ -256,13 +294,15 @@ class Tracking_system:
             parent_track, child_track = Pipe()
             parent_recog, child_recog = Pipe()
             parent_move, child_move = Pipe()
+            parent_face_recog, child_face_recog = Pipe()
 
             recog_p = None
             track_p = None
             cam_p = None
-            move_proc = None
+            move_p = None
+            face_p = None
             pIDs = []
-            
+
             if capture is None:
                 print('cam init')
                 cam_init_prop = InitModule()
@@ -270,11 +310,11 @@ class Tracking_system:
 
                 # ====== cam_move process ======
                 moving = MoveModule()
-                move_proc = Process(target=moving.coords, name='moving process',
-                                    args=(child_move, cam_init_prop))
-                move_proc.start()
-                print("move_proc PID = ", move_proc.pid)
-                pIDs.append(move_proc.pid)
+                move_p = Process(target=moving.coords, name='moving process',
+                                 args=(child_move, cam_init_prop))
+                move_p.start()
+                print("move_p PID = ", move_p.pid)
+                pIDs.append(move_p.pid)
             else:
                 self.capture = int(capture)
 
@@ -290,6 +330,18 @@ class Tracking_system:
 
             e_recog.wait()
             e_recog.clear()
+
+            # # ====== face recognize process ======
+            face_p = Process(target=self.face_proc, name='face recog process',
+                             args=(child_face_recog,))
+            face_p.start()
+            print("face_p PID = ", face_p.pid)
+            pIDs.append(face_p.pid)
+            path = os.getcwd() + '/pids.py'
+            pidF = open(path, 'w')
+            pidF.write('pIDs = ' + repr(pIDs))
+            pidF.close()
+            print("written to file before trackp")
 
             # ====== cam read process ======
             cam_p = Process(target=self.camread_proc, name='cam read process',
@@ -381,24 +433,38 @@ class Tracking_system:
                                 parent_track.send([frame])
                                 cv_bbox = parent_track.recv()
 
-                    #self.show_results(frame, cv_bbox, None, None)
+                    parent_face_recog.send(
+                        frame[int(cv_bbox[0]): int(cv_bbox[0] + cv_bbox[2]),
+                              int(cv_bbox[1]): int(cv_bbox[1] + cv_bbox[3]),
+                              :
+                              ])
+                    face_recog_res = parent_face_recog.recv()
+                    print(face_recog_res)
+                    # self.show_results(frame, None, None, None)
                     bbox = self.cv_bbox2bbox(cv_bbox)
+
                     print('send to move', bbox)
                     if capture is None:
                         parent_move.send(bbox)
-
-        except:
+                # k = cv.waitKey(1) & 0xff
+                # if k == 27:
+                #     break
+        except Exception as e:
+            print(e)
             if recog_p is not None:
                 recog_p.terminate()
                 print('recog_p terminated')
             if track_p is not None:
                 track_p.terminate()
                 print('track_p terminated')
-            if move_proc is not None:
-                move_proc.terminate()
-                print('move_proc terminated')
+            if move_p is not None:
+                move_p.terminate()
+                print('move_p terminated')
             if cam_p is not None:
                 cam_p.terminate()
                 print('cam_p terminated')
+            if face_p is not None:
+                face_p.terminate()
+                print('face_p terminated')
             print('All process terminated')
             return
