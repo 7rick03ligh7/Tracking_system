@@ -90,7 +90,7 @@ class Tracking_system:
 
         while True:
             # cap.read()
-            # cap.read()
+            cap.read()
             ok, frame, frame_num = cap.read()
             child_cam.send([frame, frame_num])
 
@@ -118,8 +118,8 @@ class Tracking_system:
         while not initialized:
             frame, res = child_track.recv()
             if res is not None:
-                cv_bbox = self.bbox2cv_bbox(res[0][1:5])
-                print(cv_bbox)
+                print(res)
+                cv_bbox = self.bbox2cv_bbox(res[1:5])
                 tracker = Tracker(self.track_type, cv_bbox, frame)
                 initialized = True
                 e_track.set()
@@ -364,6 +364,11 @@ class Tracking_system:
                     e_recog.wait()
                     e_recog.clear()
                     res = parent_recog.recv()
+                    if res != []:
+                        for result in res:
+                            if result[0] == 'person':
+                                res = result
+                                break
                 else:
                     print('frame is None')
                     time.sleep(1)
@@ -413,11 +418,14 @@ class Tracking_system:
                             e_recog.clear()
                             res = parent_recog.recv()
                             if res != []:
-                                check_recog_bbox = res[0][1:5]
+                                # check_recog_bbox = res[0][1:5]
+                                for result in res:
+                                    if result[0] == 'person':
+                                        check_recog_bbox = result[1:5]
                                 iou = self.get_iou(
                                     check_track_bbox, check_recog_bbox)
-                                print('check track', check_track_bbox)
-                                print('check recog', check_recog_bbox)
+                                # print('check track', check_track_bbox)
+                                # print('check recog', check_recog_bbox)
                                 print("IOU", iou)
                                 if iou < 0.5:
                                     parent_track.send(
@@ -432,7 +440,7 @@ class Tracking_system:
                                 print("nothing recognized")
                                 parent_track.send([frame])
                                 cv_bbox = parent_track.recv()
-
+                    """"
                     parent_face_recog.send(
                         frame[int(cv_bbox[0]): int(cv_bbox[0] + cv_bbox[2]),
                               int(cv_bbox[1]): int(cv_bbox[1] + cv_bbox[3]),
@@ -440,6 +448,7 @@ class Tracking_system:
                               ])
                     face_recog_res = parent_face_recog.recv()
                     print(face_recog_res)
+                    """
                     # self.show_results(frame, None, None, None)
                     bbox = self.cv_bbox2bbox(cv_bbox)
 

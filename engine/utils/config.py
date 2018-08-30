@@ -1,1 +1,1 @@
-{'zoom': 0.1, 'password': 'Supervisor', 'IP': '192.168.11.13', 'on': True, 'port': '80', 'right': False, 'login': 'admin'}
+{'IP': '192.168.11.13', 'right': False, 'password': 'Supervisor', 'on': False, 'login': 'admin', 'port': '80', 'zoom': 0.1}

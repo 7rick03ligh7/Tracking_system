@@ -12,7 +12,7 @@ class MoveModule:
         
         # initializes constants
         
-        safeZoneMarginX = 0.08
+        safeZoneMarginX = 0.06
         safeZoneMarginY = 0.35
         speedDelta = 0.2
         clampSpeeds = True
@@ -33,6 +33,8 @@ class MoveModule:
         else:
             height = 720
         
+        print("width", width)
+        print("height", height)
         # gets userightthird from init module
         
         useRightThird = init.UseRightThird
@@ -51,8 +53,12 @@ class MoveModule:
         
         # factor of the speed (b for the rightside, a for the leftside)
         
-        b = 1
-        a = (widthSafeMin * b) / (width - widthSafeMax)
+        print(widthSafeMin)
+        print(widthSafeMax)
+        
+        b = 0.2
+        #a = -0.5
+        a = ((widthSafeMin * b) / (width - widthSafeMax))+0.1
         print (a, b)
         
         # cycling through every analyzed frame to calculate the speeds and move the camera
@@ -60,7 +66,7 @@ class MoveModule:
         while True:
 
             coordsArray = child_pipe.recv()
-            print("pipe recieve successful", coordsArray)
+            # print("pipe recieve successful", coordsArray)
 
             x = coordsArray[0]
             y = coordsArray[1]
@@ -102,7 +108,7 @@ class MoveModule:
                     speedY = 0
                 else:
                     # y is in the bottom part of the screen
-                    speedY = -1(round(((y - heightSafeMax) / (height - heightSafeMax)), 2))
+                    speedY = -1*(round(((y - heightSafeMax) / (height - heightSafeMax)), 2))
                     print("speedY bottom", speedY) 
             else:
                 # y is in the top part of the screen
@@ -134,7 +140,8 @@ class MoveModule:
                 
                 prevSpeedY = speedY
                 prevSpeedX = speedX
-                
+                print("clampedSpeedX ", speedX)
+                print("clampedSpeedY ", speedY)
             
             req = {'Velocity': {'Zoom': {'space': '', 'x': '0'}, 'PanTilt': {'space': '', 'y': speedY, 'x': speedX}}, 'ProfileToken': token, 'Timeout': None}
             ptz.ContinuousMove(req)

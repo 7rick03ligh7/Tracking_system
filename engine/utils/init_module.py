@@ -140,6 +140,7 @@ class InitModule:
         else:
             self.profile = media.GetProfiles()[profileNo]
             print('Profile selected')
+            print(self.profile.Name)
         
         # get height - width of the frame to use in move module
         
@@ -171,9 +172,13 @@ class InitModule:
         
         # the url itself
         
-        self.streamURL = streamURIStruct.Uri
+        
+        self.streamURL = 'rtsp://' + ip + ':554' + '/Streaming/Channels/2'
         print(self.streamURL)
         
         #currentStatus = self.ptz.GetStatus(self.token)
         #print('zoom = ', currentStatus.Position.Zoom.x)
         
+    def bug(width, height):
+        self.width = width
+        self.height = height
