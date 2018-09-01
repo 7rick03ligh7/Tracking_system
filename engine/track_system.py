@@ -3,7 +3,6 @@ from engine.tracker import Tracker
 from engine.camread import CamRead
 from engine.utils.move_module import MoveModule
 from engine.utils.init_module import InitModule
-from engine.face_recog import FaceRecog
 
 from multiprocessing import Process, Pipe, Event
 import time
@@ -11,6 +10,7 @@ import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import datetime
 
 # import dlib
 # import face_recognition_models
@@ -68,6 +68,77 @@ class Tracking_system:
             h = 720 - p_y
         bbox = (p_x, p_y, w, h)
         return tuple(map(int, bbox))
+
+    def get_iou(self, box1: iter, box2: iter) -> float:
+        """
+        Calculate intersection over union (IOU) between bbox yolo type from
+            recognition and tracking
+
+        Arguments:
+            box1 {iter} -- bbox yolo type
+            box2 {iter} -- bbox yolo type
+
+        Returns:
+            float -- IOU result
+        """
+
+        tb = min(box1[0] + 0.5 * box1[2], box2[0] + 0.5 * box2[2]) - \
+            max(box1[0] - 0.5 * box1[2], box2[0] - 0.5 * box2[2])
+        lr = min(box1[1] + 0.5 * box1[3], box2[1] + 0.5 * box2[3]) - \
+            max(box1[1] - 0.5 * box1[3], box2[1] - 0.5 * box2[3])
+        if tb < 0 or lr < 0:
+            intersection = 0
+        else:
+            intersection = tb * lr
+        return intersection / (box1[2] * box1[3] +
+                               box2[2] * box2[3] - intersection)
+
+    def show_results(self, frame: np.ndarray, cv_bbox: iter=None,
+                     check_recog_bbox: iter=None, check_track_bbox: iter=None):
+        """
+        Show recognition and tracking results using cv.imshow
+
+        Arguments:
+            frame {np.ndarray} -- captured frame
+
+        Keyword Arguments:
+            cv_bbox {iter} -- bbox cv type from tracking (default: {None})
+            check_recog_bbox {iter} -- bbox cv type from recognition
+                (default: {None})
+            check_track_bbox {iter} -- bbox cv type from tracking in recognized
+                frame (default: {None})
+        """
+        frame = np.asarray(frame, dtype=np.uint8)
+
+        if cv_bbox is not None:
+            p1 = (int(cv_bbox[0]), int(cv_bbox[1]))
+            p2 = (int(cv_bbox[0] + cv_bbox[2]),
+                  int(cv_bbox[1] + cv_bbox[3]))
+            cv.rectangle(frame, p1, p2, (0, 0, 255), 2, 1)
+            cv.putText(frame, 'tracking online', (50, 60),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+        if check_recog_bbox is not None:
+            rec_cv_bbox = self.bbox2cv_bbox(check_recog_bbox)
+            # print('rec_cv_bbox', rec_cv_bbox)
+            p1_rec = (int(rec_cv_bbox[0]), int(rec_cv_bbox[1]))
+            p2_rec = (int(rec_cv_bbox[0] + rec_cv_bbox[2]),
+                      int(rec_cv_bbox[1] + rec_cv_bbox[3]))
+            cv.rectangle(frame, p1_rec, p2_rec, (0, 255, 0), 2, 1)
+            cv.putText(frame, 'recognition check', (50, 40),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 225, 0), 2)
+
+        if check_track_bbox is not None:
+            trck_cv_bbox = self.bbox2cv_bbox(check_track_bbox)
+            # print('trck_cv_bbox', trck_cv_bbox)
+            p1_trc = (int(trck_cv_bbox[0]), int(trck_cv_bbox[1]))
+            p2_trc = (int(trck_cv_bbox[0] + trck_cv_bbox[2]),
+                      int(trck_cv_bbox[1] + trck_cv_bbox[3]))
+            cv.rectangle(frame, p1_trc, p2_trc, (255, 0, 0), 2, 1)
+            cv.putText(frame, 'tracking check', (50, 20),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+        cv.imshow("track", frame)
 
     def camread_proc(self, child_cam: Pipe):
         """
@@ -164,107 +235,37 @@ class Tracking_system:
             e_recog.set()
             child_recog.send(res)
 
-    def face_proc(self, child_face_recog: Pipe):
+    def face_proc(self, child_face_recog: Pipe, e_new_person: Event):
         """
-        Parallel process for face recognition
+        Parallel process of saving people for face recognition
 
         Arguments:
             child_face_recog {Pipe} -- pipe for communication with parent process,
-                sends ROI ndarray type of recognized object
+                recieve ROI ndarray type of recognized object
         """
-
-        print("face initializer")
-        face_nn = FaceRecog()
-        # face_nn = dlib.cnn_face_detection_model_v1(
-        #     face_recognition_models.cnn_face_detector_model_location())
-        print("face initialized")
-
-        while True:
-            # print("CHILD WAIT RECV")
-            # img = child_face_recog.recv()
-            # print("CHILD START RECOG")
-            # img = np.asarray(img, dtype=np.uint8)
-            # print(img.shape)
-            # face = face_nn(img)
-            # face = face[0].rect
-
-            img = child_face_recog.recv()
-            print('facep proc recieved')
-            img = np.asarray(img, dtype=np.uint8)
-            face = face_nn.recognition_image_from_ndarray(img)
-            print('face proc sended')
-            child_face_recog.send(face)
-
-    def get_iou(self, box1: iter, box2: iter) -> float:
-        """
-        Calculate intersection over union (IOU) between bbox yolo type from
-            recognition and tracking
-
-        Arguments:
-            box1 {iter} -- bbox yolo type
-            box2 {iter} -- bbox yolo type
-
-        Returns:
-            float -- IOU result
-        """
-
-        tb = min(box1[0] + 0.5 * box1[2], box2[0] + 0.5 * box2[2]) - \
-            max(box1[0] - 0.5 * box1[2], box2[0] - 0.5 * box2[2])
-        lr = min(box1[1] + 0.5 * box1[3], box2[1] + 0.5 * box2[3]) - \
-            max(box1[1] - 0.5 * box1[3], box2[1] - 0.5 * box2[3])
-        if tb < 0 or lr < 0:
-            intersection = 0
+        if not os.path.exists('humans'):
+            print('created', os.getcwd())
+            os.mkdir('humans')
         else:
-            intersection = tb * lr
-        return intersection / (box1[2] * box1[3] +
-                               box2[2] * box2[3] - intersection)
-
-    def show_results(self, frame: np.ndarray, cv_bbox: iter=None,
-                     check_recog_bbox: iter=None, check_track_bbox: iter=None):
-        """
-        Show recognition and tracking results using cv.imshow
-
-        Arguments:
-            frame {np.ndarray} -- captured frame
-
-        Keyword Arguments:
-            cv_bbox {iter} -- bbox cv type from tracking (default: {None})
-            check_recog_bbox {iter} -- bbox cv type from recognition
-                (default: {None})
-            check_track_bbox {iter} -- bbox cv type from tracking in recognized
-                frame (default: {None})
-        """
-        frame = np.asarray(frame, dtype=np.uint8)
-
-        if cv_bbox is not None:
-            p1 = (int(cv_bbox[0]), int(cv_bbox[1]))
-            p2 = (int(cv_bbox[0] + cv_bbox[2]),
-                  int(cv_bbox[1] + cv_bbox[3]))
-            cv.rectangle(frame, p1, p2, (0, 0, 255), 2, 1)
-            cv.putText(frame, 'tracking online', (50, 60),
-                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
-        if check_recog_bbox is not None:
-            rec_cv_bbox = self.bbox2cv_bbox(check_recog_bbox)
-            # print('rec_cv_bbox', rec_cv_bbox)
-            p1_rec = (int(rec_cv_bbox[0]), int(rec_cv_bbox[1]))
-            p2_rec = (int(rec_cv_bbox[0] + rec_cv_bbox[2]),
-                      int(rec_cv_bbox[1] + rec_cv_bbox[3]))
-            cv.rectangle(frame, p1_rec, p2_rec, (0, 255, 0), 2, 1)
-            cv.putText(frame, 'recognition check', (50, 40),
-                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 225, 0), 2)
-
-        if check_track_bbox is not None:
-            trck_cv_bbox = self.bbox2cv_bbox(check_track_bbox)
-            # print('trck_cv_bbox', trck_cv_bbox)
-            p1_trc = (int(trck_cv_bbox[0]), int(trck_cv_bbox[1]))
-            p2_trc = (int(trck_cv_bbox[0] + trck_cv_bbox[2]),
-                      int(trck_cv_bbox[1] + trck_cv_bbox[3]))
-            cv.rectangle(frame, p1_trc, p2_trc, (255, 0, 0), 2, 1)
-            cv.putText(frame, 'tracking check', (50, 20),
-                       cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-
-        cv.imshow("track", frame)
+            print('exist')
+        os.chdir(os.path.join(os.getcwd(), 'humans'))
+        is_first = True
+        counter = 0
+        while True:
+            if e_new_person.is_set():
+                counter = 0
+                if not is_first:
+                    os.chdir('..')
+                new_dir = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+                os.mkdir(new_dir)
+                print('Created', os.getcwd() + new_dir)
+                os.chdir(os.path.join(os.getcwd(), new_dir))
+                e_new_person.clear()
+                is_first = False
+            image = child_face_recog.recv()
+            cv.imwrite(filename=str(counter) + '.jpg', img=image)
+            print('image saved:', os.getcwd() + str(counter) + '.jpg')
+            counter += 1
 
     def run(self, capture=0, track_type: int=0, yolo_type: str='tiny'):
         """
@@ -320,6 +321,7 @@ class Tracking_system:
 
             e_track = Event()
             e_recog = Event()
+            e_new_person = Event()
 
             # ====== recognize process ======
             recog_p = Process(target=self.recog_proc, name='recognition process',
@@ -330,18 +332,6 @@ class Tracking_system:
 
             e_recog.wait()
             e_recog.clear()
-
-            # # ====== face recognize process ======
-            face_p = Process(target=self.face_proc, name='face recog process',
-                             args=(child_face_recog,))
-            face_p.start()
-            print("face_p PID = ", face_p.pid)
-            pIDs.append(face_p.pid)
-            path = os.getcwd() + '/pids.py'
-            pidF = open(path, 'w')
-            pidF.write('pIDs = ' + repr(pIDs))
-            pidF.close()
-            print("written to file before trackp")
 
             # ====== cam read process ======
             cam_p = Process(target=self.camread_proc, name='cam read process',
@@ -389,7 +379,22 @@ class Tracking_system:
             parent_track.send([frame, res])
             e_track.wait()
 
+            # # ====== face recognize process ======
+            face_p = Process(target=self.face_proc, name='face recog process',
+                             args=(child_face_recog, e_new_person))
+            face_p.start()
+            print("face_p PID = ", face_p.pid)
+            pIDs.append(face_p.pid)
+            path = os.getcwd() + '/pids.py'
+            pidF = open(path, 'w')
+            pidF.write('pIDs = ' + repr(pIDs))
+            pidF.close()
+            print("written to file before trackp")
+
             recog_busy = False
+            new_person = False
+            is_person = True
+            e_new_person.set()
             e_recog.clear()
             check_recog_bbox = (0, 0, 0, 0)
             check_track_bbox = (0, 0, 0, 0)
@@ -421,43 +426,49 @@ class Tracking_system:
                                 # check_recog_bbox = res[0][1:5]
                                 for result in res:
                                     if result[0] == 'person':
+                                        if new_person:
+                                            e_new_person.set()
+                                            new_person = False
+                                        is_person = True
                                         check_recog_bbox = result[1:5]
-                                iou = self.get_iou(
-                                    check_track_bbox, check_recog_bbox)
-                                # print('check track', check_track_bbox)
-                                # print('check recog', check_recog_bbox)
-                                print("IOU", iou)
-                                if iou < 0.5:
-                                    parent_track.send(
-                                        [check_frame, check_recog_bbox])
-                                    parent_track.recv()
-                                    parent_track.send([frame])
-                                    cv_bbox = parent_track.recv()
-                                else:
-                                    parent_track.send([frame])
-                                    cv_bbox = parent_track.recv()
+                                        iou = self.get_iou(
+                                            check_track_bbox, check_recog_bbox)
+                                        # print('check track', check_track_bbox)
+                                        # print('check recog', check_recog_bbox)
+                                        print("IOU", iou)
+                                        if iou < 0.5:
+                                            parent_track.send(
+                                                [check_frame, check_recog_bbox])
+                                            parent_track.recv()
+                                            parent_track.send([frame])
+                                            cv_bbox = parent_track.recv()
+                                        else:
+                                            parent_track.send([frame])
+                                            cv_bbox = parent_track.recv()
                             else:
                                 print("nothing recognized")
+                                is_person = False
+                                new_person = True
                                 parent_track.send([frame])
                                 cv_bbox = parent_track.recv()
-                    """"
-                    parent_face_recog.send(
-                        frame[int(cv_bbox[0]): int(cv_bbox[0] + cv_bbox[2]),
-                              int(cv_bbox[1]): int(cv_bbox[1] + cv_bbox[3]),
-                              :
-                              ])
-                    face_recog_res = parent_face_recog.recv()
-                    print(face_recog_res)
-                    """
-                    # self.show_results(frame, None, None, None)
-                    bbox = self.cv_bbox2bbox(cv_bbox)
 
+                    if is_person:
+                        parent_face_recog.send(
+                            frame[int(cv_bbox[0]): int(cv_bbox[0] + cv_bbox[2]),
+                                  int(cv_bbox[1]): int(cv_bbox[1] + cv_bbox[3]),
+                                  :
+                                  ])
+
+                    bbox = self.cv_bbox2bbox(cv_bbox)
                     print('send to move', bbox)
                     if capture is None:
                         parent_move.send(bbox)
+
+                     # self.show_results(frame, cv_bbox, None, None)
                 # k = cv.waitKey(1) & 0xff
                 # if k == 27:
                 #     break
+
         except Exception as e:
             print(e)
             if recog_p is not None:
